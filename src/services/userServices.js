@@ -1,12 +1,15 @@
 import { STATUS } from "../constant/constant.js"
 import { createUser, deleteUser, getUser, updateUser } from "../models/userModel.js"
+import { createUserOtp, deleteUserOtp, getUserOtp } from "../models/userOtpModel.js"
 import { comparePassword, hashPassword } from "../utils/bcryptPassword.js"
-import { verifyOtp } from "../utils/otpServices.js"
+import { generateToken } from "../utils/jwtToken.js"
+import { sendOtp, verifyOtp } from "../utils/otpServices.js"
 
 export const signupService = async(data)=>{
 
     //check mobile already existing on database
     const userExist = await getUser({mobile:data.mobile})
+    console.log('userrr',userExist)
     if(userExist){
         return { status: STATUS._409, message: "Mobile Number already in use." }
     }
@@ -14,25 +17,14 @@ export const signupService = async(data)=>{
     //hash password
     data.password = await hashPassword(data.password)
 
-    //saving user
-    const savedUser = await createUser(data)
-
     //send otp function
+    const otpResponse = await sendOtp(data.mobile)
+    console.log(otpResponse,"otpresponsee")
+    data.orderId = otpResponse.orderId
 
-
-    if(savedUser){
-        // Set a timeout to delete the user if OTP is not verified in 1 minutes
-        setTimeout(async () => {
-            const userInDb = await getUser({_id:savedUser._id})
-            if (userInDb && !userInDb.isVerified) {
-                // Delete user after 2 minutes if OTP is not verified
-                await deleteUser({ _id: savedUser._id })
-                console.log(`User ${savedUser._id} removed due to OTP not being verified.`);
-            }
-        }, 60000); // 1 minutes timeout
-    }
-
-    console.log('here2')
+    //saving user otp orderid
+    await deleteUserOtp({mobile:data.mobile})
+    const savedUser = await createUserOtp(data);
 
     return {status : STATUS._200, message: "OTP sent succesfully." }
 
@@ -42,14 +34,15 @@ export const signupService = async(data)=>{
 //verify otp service
 export const verifySignupOtpService = async(data)=>{
     console.log(data)
-    const verifyStatus =  await verifyOtp(data.mobile,data.otp)
-    if(verifyStatus){
-        // const updateQuery = { isVerifie
-        const matchQuery = {mobile: data.mobile}
-        const updateQuery = {$set:{ isVerified: true }}
-        await updateUser(
-         matchQuery,updateQuery
-        )
+    const userOtp = await getUserOtp({mobile:data.mobile})
+    const {mobile,password,name} = userOtp
+    if(!userOtp){
+        return { status: STATUS._409, message: "Invalid OTP"}
+    }
+    const verifyStatus =  await verifyOtp(data.mobile,data.otp,userOtp.orderId)
+    console.log(verifyStatus,'statusv')
+    if(verifyStatus.isOTPVerified){
+        await createUser({name,mobile,password})
         return {status : STATUS._200, message: "OTP verified succesfully." }
     }
     else{
@@ -63,7 +56,8 @@ export const loginService = async(data)=>{
     if(userFound){
         const passwordMatch = await comparePassword(data.password,userFound.password)
         if(passwordMatch){
-            return {status : STATUS._200, message: "Login Successful." }
+            const token = generateToken({id:userFound._id})
+            return {status : STATUS._200, message: "Login Successful.",data:{token:token} }
         }
     }
     return { status: STATUS._409, message: "Invalid Email or Password"}

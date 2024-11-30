@@ -15,14 +15,14 @@ export const createUser = async(data)=>{
 
 
 //get user
-export const getUser = async({whereQuery})=>{
+export const getUser = async(whereQuery)=>{
     const user = await User.findOne(whereQuery);
     return user
 }
 
 
 //delete user
-export const deleteUser = async({whereQuery})=>{
+export const deleteUser = async(whereQuery)=>{
     const result = await User.deleteOne(whereQuery);
     return result
 }

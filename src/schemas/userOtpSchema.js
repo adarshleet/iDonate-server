@@ -16,8 +16,12 @@ const userSchema = new mongoose.Schema({
         required: true,
         minlength: 6,
     },
-}, { timestamps: true });
+    orderId:{
+        type:String,
+    },
+    createdAt: { type: Date, default: Date.now, index: { expires: '1m' } },
+}, );
 
-const User = mongoose.model('User', userSchema);
+const UserOtp = mongoose.model('UserOtp', userSchema);
 
-export default User
+export default UserOtp
